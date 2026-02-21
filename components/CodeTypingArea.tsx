@@ -96,6 +96,15 @@ export default function CodeTypingArea({
     reportProgress();
   });
 
+  const checkComplete = useCallback(() => {
+    if (charIndexRef.current >= code.length && !completedRef.current) {
+      completedRef.current = true;
+      console.log("[CodeTypingArea] File complete! charIndex:", charIndexRef.current, "code.length:", code.length);
+      reportProgress();
+      onCompleteRef.current();
+    }
+  }, [code.length, reportProgress]);
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (disabled || completedRef.current) return;
@@ -147,6 +156,7 @@ export default function CodeTypingArea({
         if (spaces > 0) {
           correctCharsRef.current += spaces;
           charIndexRef.current = ci + spaces;
+          checkComplete();
           rerender();
           return;
         }
@@ -162,6 +172,7 @@ export default function CodeTypingArea({
           }
           correctCharsRef.current += skipTo - (ci + 1);
           charIndexRef.current = skipTo;
+          checkComplete();
         } else {
           errorIndexRef.current = ci;
           errorCountRef.current += 1;
@@ -178,12 +189,7 @@ export default function CodeTypingArea({
         if (e.key === code[ci]) {
           correctCharsRef.current += 1;
           charIndexRef.current = ci + 1;
-
-          if (ci + 1 >= code.length) {
-            completedRef.current = true;
-            reportProgress();
-            onCompleteRef.current();
-          }
+          checkComplete();
         } else {
           errorIndexRef.current = ci;
           errorCountRef.current += 1;
@@ -192,7 +198,7 @@ export default function CodeTypingArea({
         rerender();
       }
     },
-    [code, disabled, reportProgress]
+    [code, disabled, reportProgress, checkComplete]
   );
 
   const isLeadingWhitespace = (index: number): boolean => {

@@ -168,10 +168,13 @@ function RaceContent() {
     const currentPlayers = playersRef.current;
     const stats = myStatsRef.current;
 
+    console.log("[Race] handleFileComplete called. round:", round, "totalRounds:", cfg?.totalRounds, "cfg:", !!cfg, "user:", !!user, "profile:", !!profile);
+
     if (!cfg || !user || !profile) return;
 
     const nextRound = round + 1;
     const path = ref(rtdb, `races/${roomId}/config`);
+    console.log("[Race] nextRound:", nextRound, ">=", cfg.totalRounds, "?", nextRound >= cfg.totalRounds);
 
     if (nextRound >= cfg.totalRounds) {
       // Race complete

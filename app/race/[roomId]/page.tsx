@@ -27,7 +27,7 @@ function RaceContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
 
   const roomId = params.roomId as string;
   const isSolo = searchParams.get("solo") === "true";
@@ -105,6 +105,18 @@ function RaceContent() {
 
     setCurrentRound(config.currentRound || 0);
   }, [config]);
+
+  // Auto-start solo races (skip lobby)
+  useEffect(() => {
+    if (
+      isSolo &&
+      config?.status === "waiting" &&
+      user &&
+      players[user.uid]
+    ) {
+      handleStartRace();
+    }
+  }, [isSolo, config?.status, user, players]);
 
   // Throttled progress writer
   const writeProgress = useCallback(
@@ -226,6 +238,9 @@ function RaceContent() {
 
       setRaceActive(false);
       setRaceFinished(true);
+
+      // Refresh profile so navbar CPM updates
+      refreshProfile();
     } else {
       // Next round — update local state immediately, sync RTDB in background
       setConfig((prev) =>
@@ -252,7 +267,7 @@ function RaceContent() {
         }
       }, 2000);
     }
-  }, [isSolo, profile, roomId, user]);
+  }, [isSolo, profile, refreshProfile, roomId, user]);
 
   const handlePlayAgain = () => {
     router.push("/");

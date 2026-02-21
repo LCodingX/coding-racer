@@ -111,6 +111,52 @@ function ProfileContent() {
               races={stats.recentRaces}
               averageCPM={stats.averageCPM}
             />
+
+            {/* Past Races Table */}
+            {stats.recentRaces.length > 0 && (
+              <div className="bg-navy/60 rounded-xl p-6 mt-6">
+                <h2 className="text-lg font-semibold text-editor-text mb-4">
+                  Recent Races
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-editor-comment border-b border-navy-light">
+                        <th className="text-left py-2 pr-4">Date</th>
+                        <th className="text-left py-2 pr-4">Topic</th>
+                        <th className="text-right py-2 pr-4">CPM</th>
+                        <th className="text-right py-2 pr-4">Accuracy</th>
+                        <th className="text-right py-2">Place</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.recentRaces.map((race) => (
+                        <tr
+                          key={race.raceId}
+                          className="border-b border-navy-light/50 text-editor-text"
+                        >
+                          <td className="py-2 pr-4 text-editor-comment">
+                            {new Date(race.timestamp).toLocaleDateString()}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {race.source}/{race.subfolder}
+                          </td>
+                          <td className="py-2 pr-4 text-right font-semibold text-orange">
+                            {Math.round(race.cpm)}
+                          </td>
+                          <td className="py-2 pr-4 text-right">
+                            {Math.round(race.accuracy)}%
+                          </td>
+                          <td className="py-2 text-right">
+                            {race.placement}/{race.totalPlayers}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </>
         )}
       </main>

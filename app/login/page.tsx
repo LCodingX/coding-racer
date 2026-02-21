@@ -50,7 +50,9 @@ export default function LoginPage() {
         `/api/user/check-username?username=${encodeURIComponent(value)}`
       );
       const data = await res.json();
-      if (!data.available) {
+      if (!res.ok) {
+        setUsernameError("Error checking username");
+      } else if (data.available === false) {
         setUsernameError("Username already taken");
       }
     } catch {

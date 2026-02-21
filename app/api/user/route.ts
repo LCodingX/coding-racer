@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb } from "@/lib/firebase-admin";
 import type { UserProfile } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 const AVATAR_COLORS = [
   "#e8a317",
   "#2ecc71",

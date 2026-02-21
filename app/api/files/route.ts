@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+export const dynamic = "force-dynamic";
+
 const SOURCES_DIR: Record<string, string> = {
   kactl: path.join(process.cwd(), "kactl"),
   arena: path.join(process.cwd(), "arena"),

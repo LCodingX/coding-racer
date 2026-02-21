@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
 
     const stats: UserStats = {
       averageCPM: user.averageCPM || 0,
-      totalRaces: user.totalRaces || 0,
+      totalRaces: allRaces.length,
       recentRaces,
       fastestSubfolder,
       slowestSubfolder,

@@ -5,23 +5,29 @@ import {
   type ServiceAccount,
   type App,
 } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getDatabase } from "firebase-admin/database";
-import { getAuth } from "firebase-admin/auth";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getDatabase, type Database } from "firebase-admin/database";
+import { getAuth, type Auth } from "firebase-admin/auth";
 
-function getApp(): App {
+let _app: App | undefined;
+let _db: Firestore | undefined;
+let _rtdb: Database | undefined;
+let _auth: Auth | undefined;
+
+function getAdminApp(): App {
+  if (_app) return _app;
+
   if (getApps().length > 0) {
-    return getApps()[0];
+    _app = getApps()[0];
+    return _app;
   }
 
   const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
 
   if (!projectId) {
-    // During build/dev without credentials, use a dummy app
-    return initializeApp({
-      projectId: "dummy-project",
-      databaseURL: "https://dummy-project.firebaseio.com",
-    });
+    throw new Error(
+      "FIREBASE_ADMIN_PROJECT_ID is not set. Firebase Admin SDK cannot initialize."
+    );
   }
 
   const serviceAccount: ServiceAccount = {
@@ -30,14 +36,25 @@ function getApp(): App {
     privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n"),
   };
 
-  return initializeApp({
+  _app = initializeApp({
     credential: cert(serviceAccount),
     databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
   });
+
+  return _app;
 }
 
-const app = getApp();
+export function getAdminDb(): Firestore {
+  if (!_db) _db = getFirestore(getAdminApp());
+  return _db;
+}
 
-export const adminDb = getFirestore(app);
-export const adminRtdb = getDatabase(app);
-export const adminAuth = getAuth(app);
+export function getAdminRtdb(): Database {
+  if (!_rtdb) _rtdb = getDatabase(getAdminApp());
+  return _rtdb;
+}
+
+export function getAdminAuth(): Auth {
+  if (!_auth) _auth = getAuth(getAdminApp());
+  return _auth;
+}

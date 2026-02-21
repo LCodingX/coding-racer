@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import type { UserProfile } from "@/lib/types";
 
 const AVATAR_COLORS = [
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check username uniqueness
-    const existing = await adminDb
+    const existing = await getAdminDb()
       .collection("users")
       .where("username", "==", username)
       .get();
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
       averageCPM: 0,
     };
 
-    await adminDb.collection("users").doc(uid).set(profile);
+    await getAdminDb().collection("users").doc(uid).set(profile);
 
     return NextResponse.json({ profile });
   } catch (error) {
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Missing uid" }, { status: 400 });
     }
 
-    const userSnap = await adminDb.collection("users").doc(uid).get();
+    const userSnap = await getAdminDb().collection("users").doc(uid).get();
 
     if (!userSnap.exists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });

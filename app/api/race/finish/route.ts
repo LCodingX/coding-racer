@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import type { RaceHistoryEntry } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
     };
 
     // Save race history
-    await adminDb.collection("raceHistory").add(entry);
+    await getAdminDb().collection("raceHistory").add(entry);
 
     // Update user stats
-    const userRef = adminDb.collection("users").doc(uid);
+    const userRef = getAdminDb().collection("users").doc(uid);
     const userSnap = await userRef.get();
 
     if (userSnap.exists) {

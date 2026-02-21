@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminRtdb } from "@/lib/firebase-admin";
+import { getAdminRtdb } from "@/lib/firebase-admin";
 import type { RaceConfig, RaceFile } from "@/lib/types";
 import fs from "fs";
 import path from "path";
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
       createdAt: Date.now(),
     };
 
-    await adminRtdb.ref(`races/${roomCode}/config`).set(config);
+    await getAdminRtdb().ref(`races/${roomCode}/config`).set(config);
 
     return NextResponse.json({ roomCode, files });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { getAdminDb } from "@/lib/firebase-admin";
 import type { RaceHistoryEntry, UserStats } from "@/lib/types";
 
 export async function GET(request: NextRequest) {
@@ -12,14 +12,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user profile
-    const userSnap = await adminDb.collection("users").doc(uid).get();
+    const userSnap = await getAdminDb().collection("users").doc(uid).get();
     if (!userSnap.exists) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
     const user = userSnap.data()!;
 
     // Get last 10 races
-    const racesSnap = await adminDb
+    const racesSnap = await getAdminDb()
       .collection("raceHistory")
       .where("uid", "==", uid)
       .orderBy("timestamp", "desc")
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     );
 
     // Calculate fastest/slowest subfolder from all races
-    const allRacesSnap = await adminDb
+    const allRacesSnap = await getAdminDb()
       .collection("raceHistory")
       .where("uid", "==", uid)
       .get();

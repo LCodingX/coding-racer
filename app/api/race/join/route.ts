@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminRtdb } from "@/lib/firebase-admin";
+import { getAdminRtdb } from "@/lib/firebase-admin";
 import type { PlayerState } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const configSnap = await adminRtdb
+    const configSnap = await getAdminRtdb()
       .ref(`races/${roomCode}/config`)
       .get();
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       connected: true,
     };
 
-    await adminRtdb
+    await getAdminRtdb()
       .ref(`races/${roomCode}/players/${uid}`)
       .set(playerState);
 

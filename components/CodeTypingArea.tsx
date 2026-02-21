@@ -259,6 +259,7 @@ export default function CodeTypingArea({
         ref={containerRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
+        style={{ fontVariantLigatures: "none" }}
         className="bg-editor-bg border border-navy-light rounded-b-lg p-4 font-mono text-sm leading-6 whitespace-pre-wrap outline-none focus:ring-2 focus:ring-orange/50 overflow-y-auto max-h-[60vh] cursor-text"
       >
         {renderCode()}

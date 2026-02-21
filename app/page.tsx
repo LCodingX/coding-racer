@@ -22,6 +22,7 @@ function HomeContent() {
   const [sources, setSources] = useState<string[]>([]);
   const [subfolder, setSubfolder] = useState<string>("");
   const [subfolders, setSubfolders] = useState<string[]>([]);
+  const [mode, setMode] = useState<"snippet" | "full">("snippet");
   const [rounds, setRounds] = useState(3);
   const [joinCode, setJoinCode] = useState("");
   const [creating, setCreating] = useState(false);
@@ -67,6 +68,7 @@ function HomeContent() {
           source,
           subfolder,
           totalRounds: rounds,
+          mode,
         }),
       });
 
@@ -111,6 +113,7 @@ function HomeContent() {
           source,
           subfolder,
           totalRounds: rounds,
+          mode,
         }),
       });
 
@@ -224,6 +227,34 @@ function HomeContent() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm text-editor-comment mb-2">
+              Mode
+            </label>
+            <div className="flex gap-0">
+              <button
+                onClick={() => setMode("snippet")}
+                className={`px-4 py-2 text-sm font-semibold rounded-l-lg transition-colors ${
+                  mode === "snippet"
+                    ? "bg-teal text-white"
+                    : "bg-editor-bg text-editor-comment border border-navy-light hover:text-editor-text"
+                }`}
+              >
+                Snippet (10 lines)
+              </button>
+              <button
+                onClick={() => setMode("full")}
+                className={`px-4 py-2 text-sm font-semibold rounded-r-lg transition-colors ${
+                  mode === "full"
+                    ? "bg-teal text-white"
+                    : "bg-editor-bg text-editor-comment border border-navy-light hover:text-editor-text"
+                }`}
+              >
+                Full File
+              </button>
             </div>
           </div>
 

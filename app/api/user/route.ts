@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       createdAt: Date.now(),
       totalRaces: 0,
       averageCPM: 0,
+      recentAverageCPM: 0,
     };
 
     await getAdminDb().collection("users").doc(uid).set(profile);
@@ -80,7 +81,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ profile: userSnap.data() });
+    // Compute recentAverageCPM from last 10 races
+    const recentRacesSnap = await getAdminDb()
+      .collection("raceHistory")
+      .where("uid", "==", uid)
+      .orderBy("timestamp", "desc")
+      .limit(10)
+      .get();
+
+    let recentAverageCPM = 0;
+    if (!recentRacesSnap.empty) {
+      const totalCPM = recentRacesSnap.docs.reduce(
+        (sum, doc) => sum + (doc.data().cpm || 0),
+        0
+      );
+      recentAverageCPM = totalCPM / recentRacesSnap.docs.length;
+    }
+
+    return NextResponse.json({
+      profile: { ...userSnap.data(), recentAverageCPM },
+    });
   } catch (error) {
     console.error("Error fetching user:", error);
     return NextResponse.json(

@@ -5,6 +5,7 @@ export interface UserProfile {
   createdAt: number;
   totalRaces: number;
   averageCPM: number;
+  recentAverageCPM: number;
 }
 
 export interface RaceFile {
@@ -22,6 +23,7 @@ export interface RaceConfig {
   files: RaceFile[];
   totalRounds: number;
   currentRound: number;
+  mode: "snippet" | "full";
   status: "waiting" | "countdown" | "racing" | "between_rounds" | "finished";
   createdAt: number;
 }

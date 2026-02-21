@@ -41,19 +41,30 @@ function RaceContent() {
   const [myStats, setMyStats] = useState({ cpm: 0, accuracy: 100 });
 
   const startTimeRef = useRef<number>(0);
+  // Refs to avoid stale closures in callbacks
+  const configRef = useRef<RaceConfig | null>(null);
+  const currentRoundRef = useRef(0);
+  const playersRef = useRef<Record<string, PlayerState>>({});
+  const myStatsRef = useRef({ cpm: 0, accuracy: 100 });
+
+  // Keep refs in sync with state
+  useEffect(() => { configRef.current = config; }, [config]);
+  useEffect(() => { currentRoundRef.current = currentRound; }, [currentRound]);
+  useEffect(() => { playersRef.current = players; }, [players]);
+  useEffect(() => { myStatsRef.current = myStats; }, [myStats]);
 
   // Subscribe to RTDB for config + players
   useEffect(() => {
-    const configRef = ref(rtdb, `races/${roomId}/config`);
-    const playersRef = ref(rtdb, `races/${roomId}/players`);
+    const configPath = ref(rtdb, `races/${roomId}/config`);
+    const playersPath = ref(rtdb, `races/${roomId}/players`);
 
-    const unsubConfig = onValue(configRef, (snap) => {
+    const unsubConfig = onValue(configPath, (snap) => {
       if (snap.exists()) {
         setConfig(snap.val());
       }
     });
 
-    const unsubPlayers = onValue(playersRef, (snap) => {
+    const unsubPlayers = onValue(playersPath, (snap) => {
       if (snap.exists()) {
         setPlayers(snap.val());
       }
@@ -61,11 +72,11 @@ function RaceContent() {
 
     // Set onDisconnect to mark player as disconnected
     if (user) {
-      const playerConnRef = ref(
+      const playerConnPath = ref(
         rtdb,
         `races/${roomId}/players/${user.uid}/connected`
       );
-      onDisconnect(playerConnRef).set(false);
+      onDisconnect(playerConnPath).set(false);
     }
 
     return () => {
@@ -74,14 +85,18 @@ function RaceContent() {
     };
   }, [roomId, user]);
 
-  // Auto-start solo races or when host starts
+  // Sync local state from RTDB config changes
   useEffect(() => {
     if (!config) return;
 
     if (config.status === "countdown") {
       setShowCountdown(true);
+      setRaceActive(false);
     } else if (config.status === "racing") {
       setRaceActive(true);
+      setShowCountdown(false);
+    } else if (config.status === "between_rounds") {
+      setRaceActive(false);
       setShowCountdown(false);
     } else if (config.status === "finished") {
       setRaceActive(false);
@@ -95,18 +110,20 @@ function RaceContent() {
   const writeProgress = useCallback(
     throttle((data: Partial<PlayerState>) => {
       if (!user) return;
-      const playerRef = ref(rtdb, `races/${roomId}/players/${user.uid}`);
-      set(playerRef, {
-        ...players[user.uid],
+      const playerPath = ref(rtdb, `races/${roomId}/players/${user.uid}`);
+      set(playerPath, {
+        ...playersRef.current[user.uid],
         ...data,
       });
     }, 200),
-    [user, roomId, players]
+    [user, roomId]
   );
 
   const handleStartRace = async () => {
-    const configRef = ref(rtdb, `races/${roomId}/config`);
-    await set(configRef, { ...config, status: "countdown" });
+    const cfg = configRef.current;
+    if (!cfg) return;
+    const path = ref(rtdb, `races/${roomId}/config`);
+    await set(path, { ...cfg, status: "countdown" });
   };
 
   const handleCountdownComplete = useCallback(async () => {
@@ -114,9 +131,11 @@ function RaceContent() {
     setRaceActive(true);
     startTimeRef.current = Date.now();
 
-    const configRef = ref(rtdb, `races/${roomId}/config`);
-    await set(configRef, { ...config, status: "racing" });
-  }, [config, roomId]);
+    const cfg = configRef.current;
+    if (!cfg) return;
+    const path = ref(rtdb, `races/${roomId}/config`);
+    await set(path, { ...cfg, status: "racing" });
+  }, [roomId]);
 
   const handleProgress = useCallback(
     (data: {
@@ -137,32 +156,38 @@ function RaceContent() {
         errors: data.errors,
         cpm: data.cpm,
         accuracy: data.accuracy,
-        currentFileIndex: currentRound,
+        currentFileIndex: currentRoundRef.current,
       });
     },
-    [user, writeProgress, currentRound]
+    [user, writeProgress]
   );
 
   const handleFileComplete = useCallback(async () => {
-    if (!config || !user || !profile) return;
+    const cfg = configRef.current;
+    const round = currentRoundRef.current;
+    const currentPlayers = playersRef.current;
+    const stats = myStatsRef.current;
 
-    const nextRound = currentRound + 1;
+    if (!cfg || !user || !profile) return;
 
-    if (nextRound >= config.totalRounds) {
+    const nextRound = round + 1;
+    const path = ref(rtdb, `races/${roomId}/config`);
+
+    if (nextRound >= cfg.totalRounds) {
       // Race complete
-      const myPlayer = players[user.uid];
+      const myPlayer = currentPlayers[user.uid];
       const finishData: Partial<PlayerState> = {
         finished: true,
         finishedAt: Date.now(),
         currentFileIndex: nextRound,
       };
 
-      const playerRef = ref(rtdb, `races/${roomId}/players/${user.uid}`);
-      await set(playerRef, { ...myPlayer, ...finishData });
+      const playerPath = ref(rtdb, `races/${roomId}/players/${user.uid}`);
+      await set(playerPath, { ...myPlayer, ...finishData });
 
       // Save results
       const sortedPlayers = Object.values({
-        ...players,
+        ...currentPlayers,
         [user.uid]: { ...myPlayer, ...finishData },
       }).sort((a, b) => {
         if (a.finished && !b.finished) return -1;
@@ -179,43 +204,41 @@ function RaceContent() {
         body: JSON.stringify({
           uid: user.uid,
           roomCode: roomId,
-          source: config.source,
-          subfolder: config.subfolder,
-          cpm: myStats.cpm,
-          accuracy: myStats.accuracy,
+          source: cfg.source,
+          subfolder: cfg.subfolder,
+          cpm: stats.cpm,
+          accuracy: stats.accuracy,
           placement,
-          totalPlayers: Object.keys(players).length,
+          totalPlayers: Object.keys(currentPlayers).length,
         }),
       });
 
       // Check if all players finished
-      const allFinished = Object.values(players).every(
+      const allFinished = Object.values(currentPlayers).every(
         (p) => p.finished || p.uid === user.uid
       );
       if (allFinished || isSolo) {
-        const configRef = ref(rtdb, `races/${roomId}/config`);
-        await set(configRef, { ...config, status: "finished" });
+        await set(path, { ...cfg, status: "finished" });
       }
 
       setRaceActive(false);
       setRaceFinished(true);
     } else {
-      // Next round
-      setCurrentRound(nextRound);
-      const configRef = ref(rtdb, `races/${roomId}/config`);
-      await set(configRef, {
-        ...config,
+      // Next round — set between_rounds, then auto-advance after 2s
+      await set(path, {
+        ...cfg,
         currentRound: nextRound,
         status: "between_rounds",
       });
 
-      // Brief pause, then continue
       setTimeout(async () => {
-        await set(configRef, { ...config, currentRound: nextRound, status: "racing" });
-        setRaceActive(true);
+        // Re-read ref to get the latest config (with updated currentRound)
+        const latestCfg = configRef.current;
+        if (!latestCfg) return;
+        await set(path, { ...latestCfg, currentRound: nextRound, status: "racing" });
       }, 2000);
     }
-  }, [config, currentRound, isSolo, myStats, players, profile, roomId, user]);
+  }, [isSolo, profile, roomId, user]);
 
   const handlePlayAgain = () => {
     router.push("/");
@@ -314,6 +337,7 @@ function RaceContent() {
                 totalRounds={config.totalRounds}
               />
               <CodeTypingArea
+                key={`round-${currentRound}`}
                 code={currentFile.content}
                 filename={currentFile.filename}
                 onProgress={handleProgress}

@@ -75,12 +75,11 @@ export default function CodeTypingArea({
       }
 
       if (e.key === "Backspace") {
-        if (errorIndex !== null) {
-          // Move back within error zone
-          if (charIndex > errorIndex) {
-            setCharIndex((prev) => prev - 1);
-          } else {
-            // Back at error origin, clear error state
+        if (errorIndex !== null && charIndex > errorIndex) {
+          const newIndex = charIndex - 1;
+          setCharIndex(newIndex);
+          // If we've backspaced back to the error origin, clear error state
+          if (newIndex === errorIndex) {
             setErrorIndex(null);
           }
         }
@@ -187,6 +186,15 @@ export default function CodeTypingArea({
     });
   }, [charIndex, code.length, correctChars, disabled, errorCount, onProgress, startTime]);
 
+  const isLeadingWhitespace = (index: number): boolean => {
+    if (code[index] !== " " && code[index] !== "\t") return false;
+    for (let j = index - 1; j >= 0; j--) {
+      if (code[j] === "\n") return true;
+      if (code[j] !== " " && code[j] !== "\t") return false;
+    }
+    return true; // start of file
+  };
+
   const renderCode = () => {
     const chars = code.split("");
     return chars.map((char, i) => {
@@ -201,7 +209,14 @@ export default function CodeTypingArea({
         className = "text-teal";
       }
 
-      const displayChar = char === "\n" ? "\u21B5\n" : char === " " ? "\u00B7" : char;
+      const displayChar =
+        char === "\n"
+          ? "\u21B5\n"
+          : char === " "
+          ? isLeadingWhitespace(i)
+            ? "\u00B7"
+            : " "
+          : char;
 
       return (
         <span

@@ -81,22 +81,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Compute recentAverageCPM from last 10 races
+    // Compute recentAverageCPM from last 10 races (single-field query, no composite index needed)
     let recentAverageCPM = 0;
     try {
-      const recentRacesSnap = await getAdminDb()
+      const allRacesSnap = await getAdminDb()
         .collection("raceHistory")
         .where("uid", "==", uid)
-        .orderBy("timestamp", "desc")
-        .limit(10)
         .get();
 
-      if (!recentRacesSnap.empty) {
-        const totalCPM = recentRacesSnap.docs.reduce(
-          (sum, doc) => sum + (doc.data().cpm || 0),
-          0
-        );
-        recentAverageCPM = totalCPM / recentRacesSnap.docs.length;
+      if (!allRacesSnap.empty) {
+        const races = allRacesSnap.docs
+          .map((doc) => doc.data() as { cpm: number; timestamp: number })
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 10);
+
+        const totalCPM = races.reduce((sum, r) => sum + (r.cpm || 0), 0);
+        recentAverageCPM = totalCPM / races.length;
       }
     } catch (err) {
       console.error("Error fetching recent races for CPM:", err);

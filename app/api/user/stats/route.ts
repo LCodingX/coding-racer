@@ -20,27 +20,23 @@ export async function GET(request: NextRequest) {
     }
     const user = userSnap.data()!;
 
-    // Get last 10 races
-    const racesSnap = await getAdminDb()
-      .collection("raceHistory")
-      .where("uid", "==", uid)
-      .orderBy("timestamp", "desc")
-      .limit(10)
-      .get();
-
-    const recentRaces: RaceHistoryEntry[] = racesSnap.docs.map(
-      (doc) => doc.data() as RaceHistoryEntry
-    );
-
-    // Calculate fastest/slowest subfolder from all races
+    // Get all races for this user (single-field index, no composite needed)
     const allRacesSnap = await getAdminDb()
       .collection("raceHistory")
       .where("uid", "==", uid)
       .get();
 
+    const allRaces: RaceHistoryEntry[] = allRacesSnap.docs.map(
+      (doc) => doc.data() as RaceHistoryEntry
+    );
+
+    // Sort by timestamp desc and take last 10
+    allRaces.sort((a, b) => b.timestamp - a.timestamp);
+    const recentRaces = allRaces.slice(0, 10);
+
+    // Calculate fastest/slowest subfolder
     const subfolderCPM: Record<string, { total: number; count: number }> = {};
-    allRacesSnap.docs.forEach((doc) => {
-      const race = doc.data() as RaceHistoryEntry;
+    allRaces.forEach((race) => {
       const key = `${race.source}/${race.subfolder}`;
       if (!subfolderCPM[key]) {
         subfolderCPM[key] = { total: 0, count: 0 };

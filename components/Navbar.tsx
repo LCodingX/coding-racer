@@ -25,7 +25,7 @@ export default function Navbar() {
       {profile && (
         <div className="flex items-center gap-4">
           <span className="bg-navy-light px-3 py-1 rounded text-sm text-editor-text">
-            {Math.round(profile.recentAverageCPM)} CPM
+            {Math.round(profile.recentAverageCPM || 0)} CPM
           </span>
           <Link
             href="/profile"

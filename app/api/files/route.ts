@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
-    const content = fs.readFileSync(filePath, "utf-8");
+    const content = fs.readFileSync(filePath, "utf-8").replace(/\r/g, "");
     return NextResponse.json({ source, subfolder, filename: file, content });
   }
 

@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       source: source as "kactl" | "arena",
       subfolder,
       filename,
-      content: fs.readFileSync(path.join(subfolderDir, filename), "utf-8"),
+      content: fs.readFileSync(path.join(subfolderDir, filename), "utf-8").replace(/\r/g, ""),
     }));
 
     const roomCode = generateRoomCode();

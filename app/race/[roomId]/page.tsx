@@ -224,18 +224,29 @@ function RaceContent() {
       setRaceActive(false);
       setRaceFinished(true);
     } else {
-      // Next round — set between_rounds, then auto-advance after 2s
-      await set(path, {
-        ...cfg,
-        currentRound: nextRound,
-        status: "between_rounds",
-      });
+      // Next round — update local state immediately, sync RTDB in background
+      setConfig((prev) =>
+        prev ? { ...prev, currentRound: nextRound, status: "between_rounds" } : null
+      );
 
-      setTimeout(async () => {
-        // Re-read ref to get the latest config (with updated currentRound)
+      // Write to RTDB in background for multiplayer sync
+      set(path, { ...cfg, currentRound: nextRound, status: "between_rounds" }).catch(
+        console.error
+      );
+
+      // After 2s, advance to racing
+      setTimeout(() => {
+        setConfig((prev) =>
+          prev ? { ...prev, currentRound: nextRound, status: "racing" } : null
+        );
+
+        // Sync to RTDB in background
         const latestCfg = configRef.current;
-        if (!latestCfg) return;
-        await set(path, { ...latestCfg, currentRound: nextRound, status: "racing" });
+        if (latestCfg) {
+          set(path, { ...latestCfg, currentRound: nextRound, status: "racing" }).catch(
+            console.error
+          );
+        }
       }, 2000);
     }
   }, [isSolo, profile, roomId, user]);

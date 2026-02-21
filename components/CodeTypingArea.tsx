@@ -24,21 +24,34 @@ export default function CodeTypingArea({
   onComplete,
   disabled = false,
 }: CodeTypingAreaProps) {
-  const [charIndex, setCharIndex] = useState(0);
-  const [errorIndex, setErrorIndex] = useState<number | null>(null);
-  const [errorCount, setErrorCount] = useState(0);
-  const [correctChars, setCorrectChars] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
+  // Use refs as source of truth for typing state to avoid stale closures
+  const charIndexRef = useRef(0);
+  const errorIndexRef = useRef<number | null>(null);
+  const errorCountRef = useRef(0);
+  const correctCharsRef = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
+  const completedRef = useRef(false);
+
+  // State only for triggering re-renders
+  const [, forceRender] = useState(0);
+  const rerender = () => forceRender((n) => n + 1);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const cursorRef = useRef<HTMLSpanElement>(null);
+  const onCompleteRef = useRef(onComplete);
+  const onProgressRef = useRef(onProgress);
+  onCompleteRef.current = onComplete;
+  onProgressRef.current = onProgress;
 
   // Reset state when code changes
   useEffect(() => {
-    setCharIndex(0);
-    setErrorIndex(null);
-    setErrorCount(0);
-    setCorrectChars(0);
-    setStartTime(null);
+    charIndexRef.current = 0;
+    errorIndexRef.current = null;
+    errorCountRef.current = 0;
+    correctCharsRef.current = 0;
+    startTimeRef.current = null;
+    completedRef.current = false;
+    rerender();
   }, [code]);
 
   // Auto-scroll to keep cursor visible
@@ -46,16 +59,46 @@ export default function CodeTypingArea({
     if (cursorRef.current) {
       cursorRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
     }
-  }, [charIndex]);
+  });
 
   // Focus container on mount
   useEffect(() => {
     containerRef.current?.focus();
   }, [code, disabled]);
 
+  const reportProgress = useCallback(() => {
+    const st = startTimeRef.current;
+    if (!st) return;
+    const elapsed = (Date.now() - st) / 60000;
+    const cc = correctCharsRef.current;
+    const ec = errorCountRef.current;
+    const cpm = elapsed > 0 ? Math.round(cc / elapsed) : 0;
+    const total = cc + ec;
+    const accuracy = total > 0 ? Math.round((cc / total) * 100) : 100;
+
+    onProgressRef.current({
+      charIndex: charIndexRef.current,
+      correctChars: cc,
+      totalChars: code.length,
+      errors: ec,
+      cpm,
+      accuracy,
+    });
+  }, [code.length]);
+
+  // Throttled progress reporting
+  const lastReportRef = useRef(0);
+  useEffect(() => {
+    if (!startTimeRef.current || disabled) return;
+    const now = Date.now();
+    if (now - lastReportRef.current < 200) return;
+    lastReportRef.current = now;
+    reportProgress();
+  });
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (disabled) return;
+      if (disabled || completedRef.current) return;
 
       // Ignore modifier keys alone
       if (
@@ -70,121 +113,87 @@ export default function CodeTypingArea({
 
       e.preventDefault();
 
-      if (!startTime) {
-        setStartTime(Date.now());
+      if (!startTimeRef.current) {
+        startTimeRef.current = Date.now();
       }
 
+      const ci = charIndexRef.current;
+      const ei = errorIndexRef.current;
+
       if (e.key === "Backspace") {
-        if (errorIndex !== null && charIndex > errorIndex) {
-          const newIndex = charIndex - 1;
-          setCharIndex(newIndex);
-          // If we've backspaced back to the error origin, clear error state
-          if (newIndex === errorIndex) {
-            setErrorIndex(null);
+        if (ei !== null && ci > ei) {
+          charIndexRef.current = ci - 1;
+          if (ci - 1 === ei) {
+            errorIndexRef.current = null;
           }
         }
+        rerender();
         return;
       }
 
-      // Don't advance if in error state (except backspace above)
-      if (errorIndex !== null) {
-        // Accumulate error — move forward in error zone
-        if (charIndex < code.length) {
-          setCharIndex((prev) => prev + 1);
+      // In error state — accumulate errors, only backspace can fix
+      if (ei !== null) {
+        if (ci < code.length) {
+          charIndexRef.current = ci + 1;
         }
+        rerender();
         return;
       }
 
       // Tab handling
       if (e.key === "Tab") {
-        // Try to match upcoming spaces (code often uses 2 or 4 space indentation)
-        const upcoming = code.slice(charIndex, charIndex + 4);
+        const upcoming = code.slice(ci, ci + 4);
         const spaces = upcoming.match(/^ +/)?.[0].length || 0;
         if (spaces > 0) {
-          setCorrectChars((prev) => prev + spaces);
-          setCharIndex((prev) => prev + spaces);
+          correctCharsRef.current += spaces;
+          charIndexRef.current = ci + spaces;
+          rerender();
           return;
         }
       }
 
       // Enter handling — match newline
       if (e.key === "Enter") {
-        if (code[charIndex] === "\n") {
-          setCorrectChars((prev) => prev + 1);
-          const nextIndex = charIndex + 1;
-          // Auto-skip leading whitespace on the next line
-          let skipTo = nextIndex;
+        if (code[ci] === "\n") {
+          correctCharsRef.current += 1;
+          let skipTo = ci + 1;
           while (skipTo < code.length && (code[skipTo] === " " || code[skipTo] === "\t")) {
             skipTo++;
           }
-          setCorrectChars((prev) => prev + (skipTo - nextIndex));
-          setCharIndex(skipTo);
+          correctCharsRef.current += skipTo - (ci + 1);
+          charIndexRef.current = skipTo;
         } else {
-          setErrorIndex(charIndex);
-          setErrorCount((prev) => prev + 1);
-          setCharIndex((prev) => prev + 1);
+          errorIndexRef.current = ci;
+          errorCountRef.current += 1;
+          charIndexRef.current = ci + 1;
         }
+        rerender();
         return;
       }
 
       // Normal character
       if (e.key.length === 1) {
-        if (charIndex >= code.length) return;
+        if (ci >= code.length) return;
 
-        if (e.key === code[charIndex]) {
-          setCorrectChars((prev) => prev + 1);
-          const newIndex = charIndex + 1;
-          setCharIndex(newIndex);
+        if (e.key === code[ci]) {
+          correctCharsRef.current += 1;
+          charIndexRef.current = ci + 1;
 
-          if (newIndex >= code.length) {
-            const elapsed = (Date.now() - (startTime || Date.now())) / 60000;
-            const cpm = elapsed > 0 ? Math.round((correctChars + 1) / elapsed) : 0;
-            const accuracy =
-              correctChars + 1 + errorCount > 0
-                ? Math.round(((correctChars + 1) / (correctChars + 1 + errorCount)) * 100)
-                : 100;
-            onProgress({
-              charIndex: newIndex,
-              correctChars: correctChars + 1,
-              totalChars: code.length,
-              errors: errorCount,
-              cpm,
-              accuracy,
-            });
-            onComplete();
+          if (ci + 1 >= code.length) {
+            completedRef.current = true;
+            reportProgress();
+            onCompleteRef.current();
           }
         } else {
-          setErrorIndex(charIndex);
-          setErrorCount((prev) => prev + 1);
-          setCharIndex((prev) => prev + 1);
+          errorIndexRef.current = ci;
+          errorCountRef.current += 1;
+          charIndexRef.current = ci + 1;
         }
+        rerender();
       }
     },
-    [charIndex, code, correctChars, disabled, errorCount, errorIndex, onComplete, onProgress, startTime]
+    [code, disabled, reportProgress]
   );
-
-  // Throttled progress reporting
-  const lastReportRef = useRef(0);
-  useEffect(() => {
-    if (!startTime || disabled) return;
-    const now = Date.now();
-    if (now - lastReportRef.current < 200) return;
-    lastReportRef.current = now;
-
-    const elapsed = (now - startTime) / 60000;
-    const cpm = elapsed > 0 ? Math.round(correctChars / elapsed) : 0;
-    const total = correctChars + errorCount;
-    const accuracy = total > 0 ? Math.round((correctChars / total) * 100) : 100;
-
-    onProgress({
-      charIndex,
-      correctChars,
-      totalChars: code.length,
-      errors: errorCount,
-      cpm,
-      accuracy,
-    });
-  }, [charIndex, code.length, correctChars, disabled, errorCount, onProgress, startTime]);
 
   const isLeadingWhitespace = (index: number): boolean => {
     if (code[index] !== " " && code[index] !== "\t") return false;
@@ -192,20 +201,20 @@ export default function CodeTypingArea({
       if (code[j] === "\n") return true;
       if (code[j] !== " " && code[j] !== "\t") return false;
     }
-    return true; // start of file
+    return true;
   };
 
   const renderCode = () => {
+    const ci = charIndexRef.current;
+    const ei = errorIndexRef.current;
     const chars = code.split("");
     return chars.map((char, i) => {
       let className = "text-editor-comment"; // untyped
-      const isCursor = i === charIndex && !disabled;
+      const isCursor = i === ci && !disabled;
 
-      if (errorIndex !== null && i >= errorIndex && i < charIndex) {
-        // Error zone
+      if (ei !== null && i >= ei && i < ci) {
         className = "bg-red-900/50 text-red-400";
-      } else if (i < charIndex) {
-        // Correctly typed
+      } else if (i < ci) {
         className = "text-teal";
       }
 
@@ -237,7 +246,7 @@ export default function CodeTypingArea({
       <div className="bg-navy/50 px-4 py-2 rounded-t-lg flex items-center justify-between">
         <span className="text-sm text-editor-comment">{filename}</span>
         <span className="text-xs text-editor-comment">
-          {charIndex}/{code.length} chars
+          {charIndexRef.current}/{code.length} chars
         </span>
       </div>
       <div
